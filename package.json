@@ -1,6 +1,6 @@
 {
   "name": "sm-polyfill",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SM2/SM3/SM4 polyfill for Node.js 16 and earlier. Provides SM2 signing/verification using sm-crypto when native OpenSSL support is unavailable.",
   "keywords": [
     "sm2",
@@ -33,6 +33,7 @@
   "files": [
     "lib/",
     "README.md",
+    "README_CN.md",
     "LICENSE"
   ],
   "scripts": {

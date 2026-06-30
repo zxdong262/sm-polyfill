@@ -1,5 +1,13 @@
 # sm-polyfill
 
+[![NPM Version](https://img.shields.io/npm/v/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
+[![Node.js Version](https://img.shields.io/node/v/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/zxdong262/sm-polyfill/blob/master/LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/zxdong262/sm-polyfill/test.yml?branch=master)](https://github.com/zxdong262/sm-polyfill/actions)
+[![npm downloads](https://img.shields.io/npm/dm/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
+
+**[English](./README.md)** | **[中文](./README_CN.md)**
+
 SM2/SM3/SM4 polyfill for Node.js 16 and earlier. Provides SM2 signing/verification using [sm-crypto](https://www.npmjs.com/package/sm-crypto) when native OpenSSL support is unavailable.
 
 ## Background
@@ -45,6 +53,27 @@ const verified = smPolyfill.verify(data, signature, publicKey, 'sm3');
 console.log('Verified:', verified);
 ```
 
+### PEM Key Format
+
+Both PEM and OpenSSH key formats are supported for `sign` and `verify`:
+
+```javascript
+const smPolyfill = require('sm-polyfill');
+
+// Generate a key pair (PEM format)
+const keys = smPolyfill.generateKeyPair();
+// keys.privateKey => SEC1 PEM (-----BEGIN EC PRIVATE KEY-----)
+// keys.publicKey  => SPKI PEM (-----BEGIN PUBLIC KEY-----)
+
+// Sign with PEM private key
+const data = Buffer.from('Hello PEM!');
+const sig = smPolyfill.sign(data, keys.privateKey, 'sm3');
+
+// Verify with PEM public key
+const ok = smPolyfill.verify(data, sig, keys.publicKey, 'sm3');
+console.log('Verified:', ok); // true
+```
+
 ### SM3 Hash
 
 ```javascript
@@ -73,8 +102,8 @@ const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
 
 ```javascript
 const keys = smPolyfill.generateKeyPair();
-console.log(keys.privateKey); // PEM format
-console.log(keys.publicKey);  // PEM format
+console.log(keys.privateKey); // PEM format (SEC1)
+console.log(keys.publicKey);  // PEM format (SPKI)
 ```
 
 ## API
@@ -84,7 +113,7 @@ console.log(keys.publicKey);  // PEM format
 Sign data using SM2 with SM3 hash.
 
 - `data`: Buffer or string - Data to sign
-- `privateKey`: string or Buffer - Private key in OpenSSH or PEM format
+- `privateKey`: string or Buffer - Private key in **PEM** (SEC1) or **OpenSSH** format
 - `hashAlgo`: string - Must be `'sm3'`
 - Returns: Buffer - Signature in DER format
 
@@ -94,7 +123,7 @@ Verify SM2 signature with SM3 hash.
 
 - `data`: Buffer or string - Original data
 - `signature`: Buffer - Signature in DER format
-- `publicKey`: string or Buffer - Public key in OpenSSH or PEM format
+- `publicKey`: string or Buffer - Public key in **PEM** (SPKI), **OpenSSH**, or **hex** format
 - `hashAlgo`: string - Must be `'sm3'`
 - Returns: boolean - True if signature is valid
 
@@ -122,6 +151,12 @@ Create SM4 decipher.
 - `key`: Buffer - 16-byte key
 - `iv`: Buffer - Initialization vector
 - Returns: Decipher object
+
+### `generateKeyPair()`
+
+Generate an SM2 key pair in PEM format.
+
+- Returns: `{ privateKey: string, publicKey: string }` - SEC1 private key and SPKI public key in PEM format
 
 ### `needsPolyfill()`
 
@@ -176,27 +211,21 @@ Convert DER signature to sm-crypto format.
 2. **Native Path**: If native SM2 works AND the key is in PEM/DER format, it uses Node.js's built-in `crypto.sign()` and `crypto.verify()`.
 
 3. **Polyfill Path**: If native SM2 doesn't work OR the key is in OpenSSH format, it:
-   - Parses the OpenSSH key format to extract raw key material
+   - Detects the key format (PEM or OpenSSH) automatically
+   - For PEM keys: parses ASN.1 DER to extract raw key material (SEC1 for private, SPKI for public)
+   - For OpenSSH keys: parses the OpenSSH key format to extract raw key material
    - Uses `sm-crypto` for the actual signing/verification
    - Converts between DER and sm-crypto signature formats
 
 ## Key Format Support
 
-The polyfill supports:
-- **OpenSSH format** (default from ssh2 library's keygen)
-- **PEM format** (standard OpenSSL format)
+The polyfill supports multiple key formats:
 
-For OpenSSH format keys:
-```
------BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmU...
------END OPENSSH PRIVATE KEY-----
-```
-
-For public keys:
-```
-ssh-sm2 AAAA...
-```
+| Format | Private Key | Public Key |
+|--------|------------|------------|
+| **PEM** (SEC1/SPKI) | `-----BEGIN EC PRIVATE KEY-----` | `-----BEGIN PUBLIC KEY-----` |
+| **OpenSSH** | `-----BEGIN OPENSSH PRIVATE KEY-----` | `ssh-sm2 AAAA...` |
+| **Hex** | — | Raw hex string |
 
 ## Requirements
 
@@ -205,9 +234,4 @@ ssh-sm2 AAAA...
 
 ## License
 
-MIT
-
-## See Also
-
-- [sm-crypto](https://www.npmjs.com/package/sm-crypto) - Pure JavaScript SM2/SM3/SM4 implementation
-- [ssh2](https://www.npmjs.com/package/ssh2) - SSH2 client and server modules for Node.js
+[MIT](./LICENSE)
