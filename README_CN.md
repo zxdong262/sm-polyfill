@@ -3,8 +3,6 @@
 [![NPM Version](https://img.shields.io/npm/v/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
 [![Node.js Version](https://img.shields.io/node/v/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/zxdong262/sm-polyfill/blob/master/LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/zxdong262/sm-polyfill/test.yml?branch=master)](https://github.com/zxdong262/sm-polyfill/actions)
-[![npm downloads](https://img.shields.io/npm/dm/sm-polyfill.svg)](https://www.npmjs.com/package/sm-polyfill)
 
 **[English](./README.md)** | **[中文](./README_CN.md)**
 

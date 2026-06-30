@@ -188,6 +188,134 @@ test('PEM sign produces valid signature', () => {
   assert(sig.length > 0, 'Signature should not be empty');
 });
 
+// Test derivePublicKeyFromPrivate
+console.log('\n--- Key Derivation Tests ---\n');
+
+test('derivePublicKeyFromPrivate returns correct public key', () => {
+  // Extract private key hex from PEM using the same ASN.1 parsing as sign()
+  const pemLines = pemKeys.privateKey.split('\n');
+  const derB64 = pemLines.filter(l => !l.startsWith('-----')).join('');
+  const der = Buffer.from(derB64, 'base64');
+
+  let pos = 0;
+  if (der[pos++] !== 0x30) throw new Error('Invalid DER');
+  let len = der[pos++];
+  if (len & 0x80) pos += (len & 0x7f);
+  if (der[pos++] !== 0x02) throw new Error('Invalid DER');
+  const verLen = der[pos++];
+  pos += verLen;
+  if (der[pos++] !== 0x04) throw new Error('Invalid DER');
+  const privLen = der[pos++];
+  const privKeyHex = der.slice(pos, pos + privLen).toString('hex');
+
+  const derivedPub = smPolyfill.derivePublicKeyFromPrivate(privKeyHex);
+  assert(typeof derivedPub === 'string', 'Should return a string');
+  assert(derivedPub.length === 130, 'Public key should be 65 bytes (130 hex chars)');
+  assert(derivedPub.startsWith('04'), 'Public key should start with 04 prefix');
+
+  // Cross-verify: sign with hex private key (polyfill path), verify with derived public key
+  const origCheck = smPolyfill.checkNativeSM2Support;
+  smPolyfill.checkNativeSM2Support = () => false;
+  try {
+    const data = Buffer.from('derive key test');
+    const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
+    const verified = smPolyfill.verify(data, sig, derivedPub, 'sm3');
+    assert.strictEqual(verified, true, 'Signature with derived public key should verify');
+  } finally {
+    smPolyfill.checkNativeSM2Support = origCheck;
+  }
+});
+
+// Test polyfill path (hex private key, force polyfill)
+console.log('\n--- Polyfill Path Tests (hex key, forced polyfill) ---\n');
+
+test('SM2 sign/verify with hex private key (polyfill path)', () => {
+  // Extract private key hex from PEM
+  const pemLines = pemKeys.privateKey.split('\n');
+  const derB64 = pemLines.filter(l => !l.startsWith('-----')).join('');
+  const der = Buffer.from(derB64, 'base64');
+
+  let pos = 0;
+  if (der[pos++] !== 0x30) throw new Error('Invalid DER');
+  let len = der[pos++];
+  if (len & 0x80) pos += (len & 0x7f);
+  if (der[pos++] !== 0x02) throw new Error('Invalid DER');
+  const verLen = der[pos++];
+  pos += verLen;
+  if (der[pos++] !== 0x04) throw new Error('Invalid DER');
+  const privLen = der[pos++];
+  const privKeyHex = der.slice(pos, pos + privLen).toString('hex');
+
+  // Derive public key hex from PEM public key
+  const pubPemLines = pemKeys.publicKey.split('\n');
+  const pubDerB64 = pubPemLines.filter(l => !l.startsWith('-----')).join('');
+  const pubDer = Buffer.from(pubDerB64, 'base64');
+
+  let pubPos = 0;
+  if (pubDer[pubPos++] !== 0x30) throw new Error('Invalid DER');
+  let pubLen = pubDer[pubPos++];
+  if (pubLen & 0x80) pubPos += (pubLen & 0x7f);
+  if (pubDer[pubPos++] !== 0x30) throw new Error('Invalid DER');
+  const algoLen = pubDer[pubPos++];
+  pubPos += algoLen;
+  if (pubDer[pubPos++] !== 0x03) throw new Error('Invalid DER');
+  const bitLen = pubDer[pubPos++];
+  pubPos++;
+  const pubKeyHex = pubDer.slice(pubPos, pubPos + bitLen - 1).toString('hex');
+
+  // Force polyfill path
+  const origCheck = smPolyfill.checkNativeSM2Support;
+  smPolyfill.checkNativeSM2Support = () => false;
+  try {
+    const data = Buffer.from('Hello hex key!');
+    const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
+    assert(Buffer.isBuffer(sig), 'Signature should be a Buffer');
+    assert(sig.length > 0, 'Signature should not be empty');
+
+    const verified = smPolyfill.verify(data, sig, pubKeyHex, 'sm3');
+    assert.strictEqual(verified, true, 'Hex key signature should verify');
+
+    // Verify wrong data fails
+    const wrongData = Buffer.from('Wrong data');
+    const wrongVerified = smPolyfill.verify(wrongData, sig, pubKeyHex, 'sm3');
+    assert.strictEqual(wrongVerified, false, 'Should not verify with wrong data (hex key)');
+  } finally {
+    smPolyfill.checkNativeSM2Support = origCheck;
+  }
+});
+
+test('SM2 polyfill path with string data', () => {
+  // Extract private key hex from PEM
+  const pemLines = pemKeys.privateKey.split('\n');
+  const derB64 = pemLines.filter(l => !l.startsWith('-----')).join('');
+  const der = Buffer.from(derB64, 'base64');
+
+  let pos = 0;
+  if (der[pos++] !== 0x30) throw new Error('Invalid DER');
+  let len = der[pos++];
+  if (len & 0x80) pos += (len & 0x7f);
+  if (der[pos++] !== 0x02) throw new Error('Invalid DER');
+  const verLen = der[pos++];
+  pos += verLen;
+  if (der[pos++] !== 0x04) throw new Error('Invalid DER');
+  const privLen = der[pos++];
+  const privKeyHex = der.slice(pos, pos + privLen).toString('hex');
+
+  // Derive public key
+  const pubKeyHex = smPolyfill.derivePublicKeyFromPrivate(privKeyHex);
+
+  const origCheck = smPolyfill.checkNativeSM2Support;
+  smPolyfill.checkNativeSM2Support = () => false;
+  try {
+    const data = 'String data with hex key';
+    const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
+    const verified = smPolyfill.verify(data, sig, pubKeyHex, 'sm3');
+    assert.strictEqual(verified, true, 'Should verify string data with hex key (polyfill)');
+  } finally {
+    smPolyfill.checkNativeSM2Support = origCheck;
+  }
+});
+
 // Test signature conversion
 test('Signature DER conversion round-trip', () => {
   // Create a test signature (r + s concatenated)
