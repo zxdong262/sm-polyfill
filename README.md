@@ -8,7 +8,7 @@
 
 **[English](./README.md)** | **[中文](./README_CN.md)**
 
-SM2/SM3/SM4 polyfill for Node.js 16 and earlier. Provides SM2 signing/verification using [sm-crypto](https://www.npmjs.com/package/sm-crypto) when native OpenSSL support is unavailable.
+SM2/SM3/SM4 polyfill for Node.js 16 and earlier. Provides SM2 signing/verification using [sm-crypto-v2](https://www.npmjs.com/package/sm-crypto-v2) when native OpenSSL support is unavailable.
 
 ## Background
 
@@ -20,7 +20,7 @@ Node.js 16 (OpenSSL 1.1.1) has **partial** SM algorithm support:
 
 Node.js 18+ (OpenSSL 3.0+) has **full** SM algorithm support.
 
-This polyfill enables SM2 signing/verification on Node.js 16 by falling back to the pure JavaScript `sm-crypto` implementation when native support is unavailable.
+This polyfill enables SM2 signing/verification on Node.js 16 by falling back to the pure JavaScript `sm-crypto-v2` implementation when native support is unavailable.
 
 ## Installation
 
@@ -172,7 +172,7 @@ Check if native SM2 signing works.
 
 ### `isSmCryptoAvailable()`
 
-Check if sm-crypto package is available.
+Check if sm-crypto-v2 package is available.
 
 - Returns: boolean
 
@@ -192,14 +192,14 @@ Parse OpenSSH format public key and extract the public key point.
 
 ### `signatureToDER(sigHex)`
 
-Convert sm-crypto signature format to DER.
+Convert sm-crypto-v2 signature format to DER.
 
 - `sigHex`: string - Signature as hex (r + s concatenated)
 - Returns: Buffer - DER-encoded signature
 
 ### `signatureFromDER(derSig)`
 
-Convert DER signature to sm-crypto format.
+Convert DER signature to sm-crypto-v2 format.
 
 - `derSig`: Buffer - DER-encoded signature
 - Returns: string - Signature as hex (r + s concatenated)
@@ -214,8 +214,8 @@ Convert DER signature to sm-crypto format.
    - Detects the key format (PEM or OpenSSH) automatically
    - For PEM keys: parses ASN.1 DER to extract raw key material (SEC1 for private, SPKI for public)
    - For OpenSSH keys: parses the OpenSSH key format to extract raw key material
-   - Uses `sm-crypto` for the actual signing/verification
-   - Converts between DER and sm-crypto signature formats
+   - Uses `sm-crypto-v2` for the actual signing/verification
+   - Converts between DER and sm-crypto-v2 signature formats
 
 ## Key Format Support
 
@@ -230,7 +230,7 @@ The polyfill supports multiple key formats:
 ## Requirements
 
 - Node.js >= 14.0.0
-- `sm-crypto` package (installed automatically)
+- `sm-crypto-v2` package (installed automatically)
 
 ## License
 

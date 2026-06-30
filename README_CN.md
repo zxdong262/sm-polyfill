@@ -8,7 +8,7 @@
 
 **[English](./README.md)** | **[中文](./README_CN.md)**
 
-国密 SM2/SM3/SM4 Node.js polyfill。在原生 OpenSSL 不支持国密算法时，通过 [sm-crypto](https://www.npmjs.com/package/sm-crypto) 提供 SM2 签名/验签能力。
+国密 SM2/SM3/SM4 Node.js polyfill。在原生 OpenSSL 不支持国密算法时，通过 [sm-crypto-v2](https://www.npmjs.com/package/sm-crypto-v2) 提供 SM2 签名/验签能力。
 
 ## 背景
 
@@ -20,7 +20,7 @@ Node.js 16（OpenSSL 1.1.1）对国密算法的支持**不完整**：
 
 Node.js 18+（OpenSSL 3.0+）**完整支持**国密算法。
 
-本 polyfill 在原生支持不可用时，通过纯 JavaScript 实现的 `sm-crypto` 回退方案，使 SM2 签名/验签在 Node.js 16 上也能正常工作。
+本 polyfill 在原生支持不可用时，通过纯 JavaScript 实现的 `sm-crypto-v2` 回退方案，使 SM2 签名/验签在 Node.js 16 上也能正常工作。
 
 ## 安装
 
@@ -172,7 +172,7 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 
 ### `isSmCryptoAvailable()`
 
-检查 sm-crypto 包是否可用。
+检查 sm-crypto-v2 包是否可用。
 
 - 返回：boolean
 
@@ -192,14 +192,14 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 
 ### `signatureToDER(sigHex)`
 
-将 sm-crypto 签名格式转换为 DER。
+将 sm-crypto-v2 签名格式转换为 DER。
 
 - `sigHex`：string - hex 格式签名（r + s 拼接）
 - 返回：Buffer - DER 编码签名
 
 ### `signatureFromDER(derSig)`
 
-将 DER 签名转换为 sm-crypto 格式。
+将 DER 签名转换为 sm-crypto-v2 格式。
 
 - `derSig`：Buffer - DER 编码签名
 - 返回：string - hex 格式签名（r + s 拼接）
@@ -214,8 +214,8 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
    - 自动检测密钥格式（PEM 或 OpenSSH）
    - PEM 密钥：解析 ASN.1 DER 提取原始密钥数据（私钥用 SEC1，公钥用 SPKI）
    - OpenSSH 密钥：解析 OpenSSH 密钥格式提取原始密钥数据
-   - 使用 `sm-crypto` 执行签名/验签
-   - 在 DER 和 sm-crypto 签名格式之间进行转换
+   - 使用 `sm-crypto-v2` 执行签名/验签
+   - 在 DER 和 sm-crypto-v2 签名格式之间进行转换
 
 ## 密钥格式支持
 
@@ -230,7 +230,7 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 ## 环境要求
 
 - Node.js >= 14.0.0
-- `sm-crypto` 包（自动安装）
+- `sm-crypto-v2` 包（自动安装）
 
 ## 许可证
 

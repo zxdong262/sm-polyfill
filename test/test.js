@@ -29,7 +29,7 @@ console.log(`Node.js ${process.version}, OpenSSL ${process.versions.openssl}\n`)
 console.log('Environment:');
 console.log(`  Native SM2 support: ${smPolyfill.checkNativeSM2Support()}`);
 console.log(`  Needs polyfill: ${smPolyfill.needsPolyfill()}`);
-console.log(`  sm-crypto available: ${smPolyfill.isSmCryptoAvailable()}`);
+console.log(`  sm-crypto-v2 available: ${smPolyfill.isSmCryptoAvailable()}`);
 console.log('');
 
 // Test SM3
