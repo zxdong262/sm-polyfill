@@ -105,3 +105,5 @@ typings/
 /temp/
 electerm-sync-server-node
 /esm
+.DS_Store
+.workbuddy-ai
