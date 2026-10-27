@@ -106,23 +106,25 @@ console.log(keys.publicKey);  // PEM format (SPKI)
 
 ## API
 
-### `sign(data, privateKey, hashAlgo)`
+### `sign(data, privateKey, hashAlgo[, options])`
 
 Sign data using SM2 with SM3 hash.
 
-- `data`: Buffer or string - Data to sign
-- `privateKey`: string or Buffer - Private key in **PEM** (SEC1) or **OpenSSH** format
+- `data`: Buffer or string - Data to sign. Buffers are signed as raw bytes; strings as their UTF-8 encoding
+- `privateKey`: string, Buffer or KeyObject - Private key in **PEM** (SEC1 or PKCS#8), **OpenSSH** or **hex** format, or a `crypto.KeyObject`
 - `hashAlgo`: string - Must be `'sm3'`
+- `options`: object - Optional. `userId` (string) overrides the SM2 user ID (default: empty, matching Node's native SM2)
 - Returns: Buffer - Signature in DER format
 
-### `verify(data, signature, publicKey, hashAlgo)`
+### `verify(data, signature, publicKey, hashAlgo[, options])`
 
 Verify SM2 signature with SM3 hash.
 
 - `data`: Buffer or string - Original data
 - `signature`: Buffer - Signature in DER format
-- `publicKey`: string or Buffer - Public key in **PEM** (SPKI), **OpenSSH**, or **hex** format
+- `publicKey`: string, Buffer or KeyObject - Public key in **PEM** (SPKI), **OpenSSH** or **hex** format, or a `crypto.KeyObject`
 - `hashAlgo`: string - Must be `'sm3'`
+- `options`: object - Optional. `userId` (string) overrides the SM2 user ID (default: empty, matching Node's native SM2)
 - Returns: boolean - True if signature is valid
 
 ### `sm3(data)`
@@ -209,11 +211,32 @@ Convert DER signature to sm-crypto-v2 format.
 2. **Native Path**: If native SM2 works AND the key is in PEM/DER format, it uses Node.js's built-in `crypto.sign()` and `crypto.verify()`.
 
 3. **Polyfill Path**: If native SM2 doesn't work OR the key is in OpenSSH format, it:
-   - Detects the key format (PEM or OpenSSH) automatically
-   - For PEM keys: parses ASN.1 DER to extract raw key material (SEC1 for private, SPKI for public)
+   - Detects the key format (PEM, OpenSSH, hex or KeyObject) automatically
+   - For PEM keys: parses ASN.1 DER to extract raw key material (SEC1 or PKCS#8 for private, SPKI for public)
    - For OpenSSH keys: parses the OpenSSH key format to extract raw key material
    - Uses `sm-crypto-v2` for the actual signing/verification
    - Converts between DER and sm-crypto-v2 signature formats
+
+## Data Handling
+
+`data` is signed as raw bytes, on both the native and the polyfill path:
+
+- Pass a `Buffer` for binary payloads (SSH session IDs, exchange hashes, digests). Every byte is hashed as-is, including bytes that are not valid UTF-8.
+- A `string` is treated as text and hashed as its UTF-8 encoding.
+
+## SM2 User ID
+
+The ZA prehash that SM2 signs includes a user ID (distinguishing identifier). Node's native SM2 signing uses an **empty** user ID, so the polyfill uses the same one and signatures from either path are interchangeable.
+
+This differs from the GM/T 0009 default `1234567812345678` used by some other libraries. To interoperate with those, pass the same `userId` to both calls:
+
+```javascript
+const opts = { userId: '1234567812345678' };
+const sig = smPolyfill.sign(data, privateKey, 'sm3', opts);
+const ok = smPolyfill.verify(data, sig, publicKey, 'sm3', opts);
+```
+
+When a non-default `userId` is given, the polyfill is used even if native support exists, because Node cannot be told which user ID to use.
 
 ## Key Format Support
 
@@ -222,8 +245,10 @@ The polyfill supports multiple key formats:
 | Format | Private Key | Public Key |
 |--------|------------|------------|
 | **PEM** (SEC1/SPKI) | `-----BEGIN EC PRIVATE KEY-----` | `-----BEGIN PUBLIC KEY-----` |
+| **PEM** (PKCS#8/SPKI) | `-----BEGIN PRIVATE KEY-----` | `-----BEGIN PUBLIC KEY-----` |
 | **OpenSSH** | `-----BEGIN OPENSSH PRIVATE KEY-----` | `ssh-sm2 AAAA...` |
-| **Hex** | — | Raw hex string |
+| **Hex** | 64-char hex scalar | Raw hex point |
+| **KeyObject** | `crypto.KeyObject` | `crypto.KeyObject` |
 
 ## Requirements
 

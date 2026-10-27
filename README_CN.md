@@ -106,23 +106,25 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 
 ## API
 
-### `sign(data, privateKey, hashAlgo)`
+### `sign(data, privateKey, hashAlgo[, options])`
 
 使用 SM2 和 SM3 哈希对数据签名。
 
-- `data`：Buffer 或 string - 待签名数据
-- `privateKey`：string 或 Buffer - **PEM**（SEC1）或 **OpenSSH** 格式私钥
+- `data`：Buffer 或 string - 待签名数据。Buffer 按原始字节签名，string 按其 UTF-8 编码签名
+- `privateKey`：string、Buffer 或 KeyObject - **PEM**（SEC1 或 PKCS#8）、**OpenSSH**、**hex** 格式私钥，或 `crypto.KeyObject`
 - `hashAlgo`：string - 必须为 `'sm3'`
+- `options`：object - 可选。`userId`（string）覆盖 SM2 用户 ID（默认空，与 Node 原生 SM2 一致）
 - 返回：Buffer - DER 格式签名
 
-### `verify(data, signature, publicKey, hashAlgo)`
+### `verify(data, signature, publicKey, hashAlgo[, options])`
 
 使用 SM3 哈希验证 SM2 签名。
 
 - `data`：Buffer 或 string - 原始数据
 - `signature`：Buffer - DER 格式签名
-- `publicKey`：string 或 Buffer - **PEM**（SPKI）、**OpenSSH** 或 **hex** 格式公钥
+- `publicKey`：string、Buffer 或 KeyObject - **PEM**（SPKI）、**OpenSSH**、**hex** 格式公钥，或 `crypto.KeyObject`
 - `hashAlgo`：string - 必须为 `'sm3'`
+- `options`：object - 可选。`userId`（string）覆盖 SM2 用户 ID（默认空，与 Node 原生 SM2 一致）
 - 返回：boolean - 签名有效返回 true
 
 ### `sm3(data)`
@@ -209,11 +211,32 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 2. **原生路径**：如果原生 SM2 可用且密钥为 PEM/DER 格式，直接使用 Node.js 内置的 `crypto.sign()` 和 `crypto.verify()`。
 
 3. **Polyfill 路径**：如果原生 SM2 不可用或密钥为 OpenSSH 格式：
-   - 自动检测密钥格式（PEM 或 OpenSSH）
-   - PEM 密钥：解析 ASN.1 DER 提取原始密钥数据（私钥用 SEC1，公钥用 SPKI）
+   - 自动检测密钥格式（PEM、OpenSSH、hex 或 KeyObject）
+   - PEM 密钥：解析 ASN.1 DER 提取原始密钥数据（私钥用 SEC1 或 PKCS#8，公钥用 SPKI）
    - OpenSSH 密钥：解析 OpenSSH 密钥格式提取原始密钥数据
    - 使用 `sm-crypto-v2` 执行签名/验签
    - 在 DER 和 sm-crypto-v2 签名格式之间进行转换
+
+## 数据处理
+
+`data` 在原生路径和 Polyfill 路径上都按原始字节签名：
+
+- 二进制数据（SSH 会话 ID、交换哈希、摘要值）请传 `Buffer`，每个字节原样参与哈希，包括非 UTF-8 的字节。
+- `string` 按文本处理，以其 UTF-8 编码参与哈希。
+
+## SM2 用户 ID
+
+SM2 签名前的 ZA 预哈希包含一个用户 ID（区分标识）。Node 原生 SM2 签名使用**空**用户 ID，因此 polyfill 也使用空 ID，两条路径产生的签名可以互相验证。
+
+这与部分其他库使用的 GM/T 0009 默认值 `1234567812345678` 不同。如需与这些库互通，请在签名和验签时传入相同的 `userId`：
+
+```javascript
+const opts = { userId: '1234567812345678' };
+const sig = smPolyfill.sign(data, privateKey, 'sm3', opts);
+const ok = smPolyfill.verify(data, sig, publicKey, 'sm3', opts);
+```
+
+传入非默认 `userId` 时会强制走 polyfill，因为无法告知 Node 使用哪个用户 ID。
 
 ## 密钥格式支持
 
@@ -222,8 +245,10 @@ console.log(keys.publicKey);  // PEM 格式（SPKI）
 | 格式 | 私钥 | 公钥 |
 |------|------|------|
 | **PEM**（SEC1/SPKI） | `-----BEGIN EC PRIVATE KEY-----` | `-----BEGIN PUBLIC KEY-----` |
+| **PEM**（PKCS#8/SPKI） | `-----BEGIN PRIVATE KEY-----` | `-----BEGIN PUBLIC KEY-----` |
 | **OpenSSH** | `-----BEGIN OPENSSH PRIVATE KEY-----` | `ssh-sm2 AAAA...` |
-| **Hex** | — | 原始 hex 字符串 |
+| **Hex** | 64 字符 hex 标量 | 原始 hex 点 |
+| **KeyObject** | `crypto.KeyObject` | `crypto.KeyObject` |
 
 ## 环境要求
 

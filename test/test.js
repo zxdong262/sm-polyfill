@@ -214,15 +214,15 @@ test('derivePublicKeyFromPrivate returns correct public key', () => {
   assert(derivedPub.startsWith('04'), 'Public key should start with 04 prefix');
 
   // Cross-verify: sign with hex private key (polyfill path), verify with derived public key
-  const origCheck = smPolyfill.checkNativeSM2Support;
-  smPolyfill.checkNativeSM2Support = () => false;
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
   try {
     const data = Buffer.from('derive key test');
     const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
     const verified = smPolyfill.verify(data, sig, derivedPub, 'sm3');
     assert.strictEqual(verified, true, 'Signature with derived public key should verify');
   } finally {
-    smPolyfill.checkNativeSM2Support = origCheck;
+    smPolyfill._setNativeSM2Support(origCheck);
   }
 });
 
@@ -264,8 +264,8 @@ test('SM2 sign/verify with hex private key (polyfill path)', () => {
   const pubKeyHex = pubDer.slice(pubPos, pubPos + bitLen - 1).toString('hex');
 
   // Force polyfill path
-  const origCheck = smPolyfill.checkNativeSM2Support;
-  smPolyfill.checkNativeSM2Support = () => false;
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
   try {
     const data = Buffer.from('Hello hex key!');
     const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
@@ -280,7 +280,7 @@ test('SM2 sign/verify with hex private key (polyfill path)', () => {
     const wrongVerified = smPolyfill.verify(wrongData, sig, pubKeyHex, 'sm3');
     assert.strictEqual(wrongVerified, false, 'Should not verify with wrong data (hex key)');
   } finally {
-    smPolyfill.checkNativeSM2Support = origCheck;
+    smPolyfill._setNativeSM2Support(origCheck);
   }
 });
 
@@ -304,15 +304,131 @@ test('SM2 polyfill path with string data', () => {
   // Derive public key
   const pubKeyHex = smPolyfill.derivePublicKeyFromPrivate(privKeyHex);
 
-  const origCheck = smPolyfill.checkNativeSM2Support;
-  smPolyfill.checkNativeSM2Support = () => false;
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
   try {
     const data = 'String data with hex key';
     const sig = smPolyfill.sign(data, privKeyHex, 'sm3');
     const verified = smPolyfill.verify(data, sig, pubKeyHex, 'sm3');
     assert.strictEqual(verified, true, 'Should verify string data with hex key (polyfill)');
   } finally {
-    smPolyfill.checkNativeSM2Support = origCheck;
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+});
+
+// Test binary payloads and key input forms on the polyfill path
+console.log('\n--- Binary Payload / Key Input Tests (polyfill path) ---\n');
+
+const privKeyObject = crypto.createPrivateKey(pemKeys.privateKey);
+const pubKeyObject = crypto.createPublicKey(pemKeys.publicKey);
+const pkcs8Pem = privKeyObject.export({ type: 'pkcs8', format: 'pem' });
+
+test('polyfill signs raw bytes, not a UTF-8 re-encoding', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
+  try {
+    const data = Buffer.from(Array.from({ length: 256 }, (_, i) => i));
+    const reencoded = Buffer.from(data.toString('utf8'), 'utf8');
+
+    assert(!data.equals(reencoded), 'payload must not survive a UTF-8 round-trip');
+
+    const sig = smPolyfill.sign(data, privKeyObject, 'sm3');
+    assert.strictEqual(
+      smPolyfill.verify(data, sig, pubKeyObject, 'sm3'),
+      true,
+      'signature should verify against the original bytes'
+    );
+    assert.strictEqual(
+      smPolyfill.verify(reencoded, sig, pubKeyObject, 'sm3'),
+      false,
+      'signature must not verify against the UTF-8 re-encoding of the payload'
+    );
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+});
+
+test('polyfill path accepts PKCS#8 PEM private keys', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
+  try {
+    assert(pkcs8Pem.includes('BEGIN PRIVATE KEY'), 'expected a PKCS#8 PEM');
+    const data = Buffer.from('pkcs8 key test');
+    const sig = smPolyfill.sign(data, pkcs8Pem, 'sm3');
+    assert.strictEqual(smPolyfill.verify(data, sig, pubKeyObject, 'sm3'), true);
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+});
+
+test('polyfill path accepts KeyObject keys', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
+  try {
+    const data = Buffer.from('key object test');
+    const sig = smPolyfill.sign(data, privKeyObject, 'sm3');
+    assert.strictEqual(smPolyfill.verify(data, sig, pubKeyObject, 'sm3'), true);
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+});
+
+test('polyfill path rejects unusable private key input clearly', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
+  try {
+    assert.throws(() => {
+      smPolyfill.sign(Buffer.from('x'), {}, 'sm3');
+    }, /Invalid private key/);
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+});
+
+test('polyfill and native paths produce interchangeable signatures', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  if (!origCheck) {
+    console.log('    (native SM2 unavailable here, cross-path check skipped)');
+    return;
+  }
+
+  const data = Buffer.from('cross path interop');
+  const sigNative = crypto.sign('sm3', data, privKeyObject);
+
+  smPolyfill._setNativeSM2Support(false);
+  let sigPoly;
+  try {
+    sigPoly = smPolyfill.sign(data, pemKeys.privateKey, 'sm3');
+    assert.strictEqual(
+      smPolyfill.verify(data, sigNative, pemKeys.publicKey, 'sm3'),
+      true,
+      'polyfill must verify a signature made by the native path'
+    );
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
+  }
+
+  assert.strictEqual(
+    smPolyfill.verify(data, sigPoly, pemKeys.publicKey, 'sm3'),
+    true,
+    'native path must verify a signature made by the polyfill'
+  );
+});
+
+test('explicit GM/T user ID round-trips and is distinct from the default', () => {
+  const origCheck = smPolyfill.checkNativeSM2Support();
+  smPolyfill._setNativeSM2Support(false);
+  try {
+    const data = Buffer.from('user id test');
+    const gmId = { userId: '1234567812345678' };
+    const sig = smPolyfill.sign(data, privKeyObject, 'sm3', gmId);
+
+    assert.strictEqual(smPolyfill.verify(data, sig, pubKeyObject, 'sm3', gmId), true,
+      'signature should verify with the same user ID');
+    assert.strictEqual(smPolyfill.verify(data, sig, pubKeyObject, 'sm3'), false,
+      'signature must not verify under the default user ID');
+  } finally {
+    smPolyfill._setNativeSM2Support(origCheck);
   }
 });
 
